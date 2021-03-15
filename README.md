@@ -1,5 +1,6 @@
 # mtd
 Golang multithreaded/concurrent downloader.
+Work in progress, any contribution or feedback is appreciated!
 
 ## Installation
 ```bash
