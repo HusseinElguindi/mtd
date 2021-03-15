@@ -7,12 +7,14 @@ Work in progress, any contribution or feedback is appreciated!
 go get github.com/husseinelguindi/mtd
 ```
 
-## Features
+## Features/To-Do
 - [x] Concurrent chunked download through Goroutines
 - [x] HTTP/HTTPS download support
 - [x] Offset write to file
 - [x] Synchronized writing to file (never write 2 things at once)
 - [x] Go module interface to download within your program
+- [ ] Pause/resume support
+- [ ] Multiple downloads in a single instance
 - [ ] Command line interface (coming soon)
     - [ ] Args
     - [ ] Console input
