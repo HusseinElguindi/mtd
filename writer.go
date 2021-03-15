@@ -39,13 +39,11 @@ func (wo writeObj) write() {
 	// 	return
 	// }
 
-	// fmt.Println("writing:", wo.offset)
 	wrote := 0
 	for wrote < len(wo.buf) {
 		// n, err := wo.dest.Write(wo.buf)
 		n, err := wo.dst.WriteAt(wo.buf, int64(wo.offset+uint64(wrote)))
 		if err != nil {
-			// fmt.Println("thread:", n, err)
 			wo.errCh <- err
 			return
 		}
