@@ -19,21 +19,15 @@ type Task struct {
 	bufSize uint64
 
 	dst     io.WriterAt
-	writer  writer
+	writer  Writer
 	headers http.Header
 
 	closeCh chan uint8
 	errCh   chan error
 }
 
-func New(URL string, chunks uint32, bufSize uint64, dst io.WriterAt) *Task {
-	w := writer{
-		writeCh: make(chan writeObj),
-		closeCh: make(chan int, 1),
-	}
-	w.listen()
-
-	return &Task{
+func New(URL string, chunks uint32, bufSize uint64, dst io.WriterAt, w Writer) Task {
+	return Task{
 		url:     URL,
 		chunks:  chunks,
 		bufSize: bufSize,
@@ -87,7 +81,7 @@ func (t Task) DownloadHTTP() error {
 // head returns information about a download link
 func (t Task) head() (contentLength int64, acceptRanges bool, mime string, err error) {
 	req, _ := http.NewRequest(http.MethodHead, t.url, nil)
-	setHeaders(req, t.headers)
+	setReqHeaders(req, t.headers)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -107,7 +101,7 @@ func (t Task) downloadChunk(start, end uint64) {
 	defer func() { t.closeCh <- 1 }()
 
 	req, _ := http.NewRequest(http.MethodGet, t.url, nil)
-	setHeaders(req, t.headers)
+	setReqHeaders(req, t.headers)
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
 
 	resp, err := http.DefaultClient.Do(req)
