@@ -11,12 +11,22 @@ type writeObj struct {
 	errCh  chan error
 }
 
-type writer struct {
+type Writer struct {
 	writeCh chan writeObj
 	closeCh chan int
 }
 
-func (w writer) listen() {
+// NewWriter initializes a new writer
+func NewWriter() Writer {
+	w := Writer{
+		writeCh: make(chan writeObj),
+		closeCh: make(chan int, 1),
+	}
+	w.listen()
+	return w
+}
+
+func (w Writer) listen() {
 	go func() {
 		for {
 			select {

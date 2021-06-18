@@ -2,7 +2,7 @@ package mtd
 
 import "net/http"
 
-func setHeaders(req *http.Request, headers http.Header) {
+func setReqHeaders(req *http.Request, headers http.Header) {
 	if headers == nil {
 		return
 	}
