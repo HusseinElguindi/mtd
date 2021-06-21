@@ -6,17 +6,10 @@ import (
 	"net/http"
 )
 
-type DownloadType int
-
-const (
-	DownloadTypeHTTP = DownloadType(0)
-)
-
 type Task struct {
-	DownloadType DownloadType
-	URL          string
-	// Threads
-	// ChunkSize
+	URL string
+	// Threads uint
+	// ChunkSize int64
 	Chunks  uint
 	BufSize int64
 
@@ -29,44 +22,58 @@ type Task struct {
 	Ctx context.Context
 }
 
-func (t Task) write(rc io.ReadCloser, byteRange byteRange) (written int, err error) {
-	buf := make([]byte, t.BufSize)
+func (t Task) write(rc io.ReadCloser, bRange byteRange) (written int, err error) {
+	// Determine the smallest useable byte buffer size and allocate the space for it
+	bufSize := minInt64(t.BufSize, bRange.end-bRange.start+1)
+	buf := make([]byte, bufSize)
 
+	// Prepare backet for reusing
 	packet := packet{
+		buf: buf,
 		dst: t.Dst,
-		off: 0,
 	}
-	if byteRange.Valid() {
-		packet.off = byteRange.start
+
+	// Set offset for chunked downloads
+	if bRange.Valid() {
+		packet.off = bRange.start
 	}
 
 	for {
+		// Handle cancel without blocking
 		select {
 		case <-t.Ctx.Done():
 			return
 		default:
 		}
 
-		// n, err := rc.Read(buf[:])
+		// Read up to bufSize bytes
 		var n int
 		n, err = io.ReadFull(rc, buf[:])
-		if err != nil && err != io.EOF {
+		if err != nil && err != io.ErrUnexpectedEOF || err != io.EOF {
 			return
 		}
 
+		// Break if no bytes were read (no bytes left to write)
 		if n == 0 {
 			break
 		}
 
+		// Set the packet's buffer as a slice of the newly read bytes
 		packet.buf = buf[:n]
-		packet.off += int64(written)
 
+		// Write the packet
 		n, err = t.Writer.Write(packet)
+
+		// Update offset for next write
+		packet.off += int64(n)
+		// Update the total number of bytes written
 		written += n
+
+		// Handle any write errors
 		if err != nil {
 			return
 		}
 	}
 
-	return
+	return written, nil
 }

@@ -19,6 +19,10 @@ type metadata struct {
 	acceptByteRanges bool
 }
 
+// TODO: implement download retries
+// TODO: progress bars
+// TODO: background program that connects to terminal command (like Docker cli)
+
 func (t Task) httpHEAD() (metadata, error) {
 	// Create request
 	req, _ := http.NewRequest(http.MethodHead, t.URL, nil)
@@ -43,56 +47,68 @@ func (t Task) httpHEAD() (metadata, error) {
 }
 
 func (t Task) Download() error {
+	// Get metadata from a HEAD request
 	meta, err := t.httpHEAD()
 	if err != nil {
 		return err
 	}
-
+	// Ensure the content has a positive, non-zero length
 	if meta.contentLength <= 0 {
 		return ErrNoContentLength
 	}
 
+	// Determine the chunk size taking into consideration the content length, number of chunks,
+	// and whether or not the file server allows for byte ranges
 	chunkSize := meta.contentLength
 	if meta.acceptByteRanges && t.Chunks > 1 {
-		chunkSize = meta.contentLength / int64(t.Chunks)
+		chunkSize = meta.contentLength / int64(t.Chunks) // Floored
 	}
 
-	var start, end int64
+	// Prepare waitgroup with the expected number of goroutines
 	wg := &sync.WaitGroup{}
+	wg.Add(int(t.Chunks))
+
+	// Initialize the error channel
 	errc := make(chan error)
+
+	// Distibute the byte ranges between t.Chunks number of goroutines
+	var start, end int64
 	for i := uint(1); i < t.Chunks; i++ {
 		end += chunkSize
-		wg.Add(1)
 		go t.httpWorker(byteRange{start, end - 1}, wg, errc)
 		start = end
 	}
+	// Handle remaining bytes (or all bytes if t.Chunks is 1)
 	end += meta.contentLength - start
-	wg.Add(1)
 	go t.httpWorker(byteRange{start, end}, wg, errc)
 
+	// Listen for errors
 	go func() {
 		for {
 			err := <-errc
+			// TODO: handle errors
 			fmt.Println("error!", err)
 		}
 	}()
 
+	// Wait for worker goroutines to finish
 	wg.Wait()
-	fmt.Println("done")
 	return nil
 }
 
 func (t Task) httpWorker(bRange byteRange, wg *sync.WaitGroup, errc chan<- error) {
 	defer wg.Done()
 
-	data, err := t.httpGET(bRange)
+	// Get body
+	rc, err := t.httpGET(bRange)
 	if err != nil {
 		errc <- err
 		return
 	}
-	defer data.Close()
+	defer rc.Close()
 
-	_, err = t.write(data, bRange)
+	// Write the body
+	_, err = t.write(rc, bRange)
 	if err != nil {
 		errc <- err
 		return
@@ -102,9 +118,9 @@ func (t Task) httpWorker(bRange byteRange, wg *sync.WaitGroup, errc chan<- error
 type byteRange struct{ start, end int64 }
 
 func (b byteRange) Header() string { return fmt.Sprintf("bytes=%d-%d", b.start, b.end) }
-func (b byteRange) Valid() bool    { return b.end != 0 && b.end > b.start }
+func (b byteRange) Valid() bool    { return b.end > 0 && b.end > b.start }
 
-func (t Task) httpGET(byteRange byteRange) (io.ReadCloser, error) {
+func (t Task) httpGET(bRange byteRange) (io.ReadCloser, error) {
 	req, _ := http.NewRequest(http.MethodGet, t.URL, nil)
 	// Set task's request headers
 	for k, v := range t.Headers {
@@ -112,8 +128,8 @@ func (t Task) httpGET(byteRange byteRange) (io.ReadCloser, error) {
 	}
 
 	// Set the byte range header if a range is passed
-	if byteRange.Valid() {
-		req.Header.Set("Range", byteRange.Header())
+	if bRange.Valid() {
+		req.Header.Set("Range", bRange.Header())
 	}
 
 	// Perform the GET request with the task's client
