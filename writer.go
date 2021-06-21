@@ -28,31 +28,23 @@ type Writer struct {
 	ctx context.Context
 }
 
-func (w Writer) Write(p packet) (int, error) {
-	if w.ctx == nil {
-		return 0, ErrWriterNotListening
-	}
+func NewWriter(ctx context.Context) Writer {
+	return Writer{
+		packets: make(chan packet),
+		acks:    make(chan ack),
 
+		ctx: ctx,
+	}
+}
+
+func (w Writer) Write(p packet) (int, error) {
 	w.packets <- p
 	ack := <-w.acks
 	return ack.written, ack.err
 }
 
-func NewWriter() Writer {
-	return Writer{
-		packets: make(chan packet),
-	}
-}
-
 // Listen - starts to listen for write packets, consuming them as they come in, until context is cancelled
-func (w *Writer) Listen(ctx context.Context) {
-	// Only allow one instance of the writer to listen at once
-	if w.ctx != nil {
-		return
-	}
-	w.ctx = ctx
-
-	// Listener loop
+func (w *Writer) Listen() {
 	for {
 		select {
 		// Handle cancellations
@@ -67,7 +59,7 @@ func (w *Writer) Listen(ctx context.Context) {
 
 func (p packet) write(ctx context.Context) ack {
 	ack := ack{}
-	for ack.written < len(p.buf) {
+	for ack.written < len(p.buf[:]) {
 		// Handle cancel without blocking
 		select {
 		case <-ctx.Done():
