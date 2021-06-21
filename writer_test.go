@@ -19,11 +19,7 @@ func (w *writeAtBuf) WriteAt(p []byte, off int64) (n int, err error) {
 func TestWriterWrite(t *testing.T) {
 	buf := &writeAtBuf{}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	writer := NewWriter(ctx)
-	go writer.Listen()
-
+	writer := Writer{}
 	p := packet{
 		dst: buf,
 		buf: []byte("Hello there"),
@@ -62,10 +58,10 @@ func TestHTTPDownload(t *testing.T) {
 	}
 	defer f.Close()
 
+	writer := Writer{}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	writer := NewWriter(ctx)
-	go writer.Listen()
 
 	task := Task{
 		DownloadType: DownloadTypeHTTP,
@@ -74,11 +70,11 @@ func TestHTTPDownload(t *testing.T) {
 		BufSize:      7 * 1024 * 1024, // 7mb
 
 		Dst:    f,
-		Writer: writer,
+		Writer: &writer,
 
 		Ctx: ctx,
 	}
 
-	err = task.HTTPInit()
+	err = task.Download()
 	fmt.Println(err)
 }

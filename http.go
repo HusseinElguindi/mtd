@@ -42,7 +42,7 @@ func (t Task) httpHEAD() (metadata, error) {
 	}, err
 }
 
-func (t Task) HTTPInit() error {
+func (t Task) Download() error {
 	meta, err := t.httpHEAD()
 	if err != nil {
 		return err
@@ -57,58 +57,23 @@ func (t Task) HTTPInit() error {
 		chunkSize = meta.contentLength / int64(t.Chunks)
 	}
 
+	var start, end int64
 	wg := &sync.WaitGroup{}
-
-	byteRange := byteRange{}
-	errors := make(chan error)
+	errc := make(chan error)
 	for i := uint(1); i < t.Chunks; i++ {
+		end += chunkSize
 		wg.Add(1)
-		byteRange.end += chunkSize
-		go func() {
-			defer wg.Done()
-
-			byteRange := byteRange
-			byteRange.end -= 1
-			data, err := t.httpGET(&byteRange)
-			if err != nil {
-				errors <- err
-				return
-			}
-			defer data.Close()
-
-			ack := t.write(data, &byteRange)
-			if ack.err != nil {
-				errors <- err
-				return
-			}
-		}()
-		byteRange.start = byteRange.end
+		go t.httpWorker(byteRange{start, end - 1}, wg, errc)
+		start = end
 	}
-	byteRange.end += meta.contentLength - byteRange.start
+	end += meta.contentLength - start
 	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		byteRange := byteRange
-		data, err := t.httpGET(&byteRange)
-		if err != nil {
-			errors <- err
-			return
-		}
-		defer data.Close()
-
-		ack := t.write(data, &byteRange)
-		fmt.Println(ack)
-		if ack.err != nil {
-			errors <- err
-			return
-		}
-	}()
+	go t.httpWorker(byteRange{start, end}, wg, errc)
 
 	go func() {
 		for {
-			err := <-errors
-			fmt.Println(err)
+			err := <-errc
+			fmt.Println("error!", err)
 		}
 	}()
 
@@ -117,14 +82,29 @@ func (t Task) HTTPInit() error {
 	return nil
 }
 
-type byteRange struct {
-	start, end int64
+func (t Task) httpWorker(bRange byteRange, wg *sync.WaitGroup, errc chan<- error) {
+	defer wg.Done()
+
+	data, err := t.httpGET(bRange)
+	if err != nil {
+		errc <- err
+		return
+	}
+	defer data.Close()
+
+	_, err = t.write(data, bRange)
+	if err != nil {
+		errc <- err
+		return
+	}
 }
 
-func (b byteRange) String() string { return fmt.Sprintf("bytes=%d-%d", b.start, b.end) }
+type byteRange struct{ start, end int64 }
 
-func (t Task) httpGET(byteRange *byteRange) (io.ReadCloser, error) {
-	fmt.Println(byteRange)
+func (b byteRange) Header() string { return fmt.Sprintf("bytes=%d-%d", b.start, b.end) }
+func (b byteRange) Valid() bool    { return b.end != 0 && b.end > b.start }
+
+func (t Task) httpGET(byteRange byteRange) (io.ReadCloser, error) {
 	req, _ := http.NewRequest(http.MethodGet, t.URL, nil)
 	// Set task's request headers
 	for k, v := range t.Headers {
@@ -132,55 +112,11 @@ func (t Task) httpGET(byteRange *byteRange) (io.ReadCloser, error) {
 	}
 
 	// Set the byte range header if a range is passed
-	if byteRange != nil {
-		req.Header.Set("Range", byteRange.String())
+	if byteRange.Valid() {
+		req.Header.Set("Range", byteRange.Header())
 	}
 
 	// Perform the GET request with the task's client
 	resp, err := t.Client.Do(req)
 	return resp.Body, err
-}
-
-func (t Task) write(rc io.ReadCloser, byteRange *byteRange) ack {
-	buf := make([]byte, t.BufSize)
-	var written int64
-
-	packet := packet{
-		dst: t.Dst,
-		off: 0,
-	}
-	if byteRange != nil {
-		packet.off = byteRange.start
-	}
-
-	for {
-		select {
-		case <-t.Ctx.Done():
-			return ack{int(written), nil}
-		default:
-		}
-
-		// n, err := rc.Read(buf[:])
-		n, err := io.ReadFull(rc, buf[:])
-		if err != nil && err != io.EOF {
-			return ack{int(written), nil}
-		}
-
-		if n == 0 {
-			break
-		}
-
-		fmt.Println(packet.off, n, written)
-
-		packet.buf = buf[:n]
-		packet.off += written
-
-		n, err = t.Writer.Write(packet)
-		written += int64(n)
-		if err != nil {
-			return ack{int(written), err}
-		}
-	}
-
-	return ack{int(written), nil}
 }
