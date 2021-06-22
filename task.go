@@ -49,7 +49,7 @@ func (t Task) write(rc io.ReadCloser, bRange byteRange) (written int, err error)
 		// Read up to bufSize bytes
 		var n int
 		n, err = io.ReadFull(rc, buf[:])
-		if err != nil && err != io.ErrUnexpectedEOF || err != io.EOF {
+		if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
 			return
 		}
 
