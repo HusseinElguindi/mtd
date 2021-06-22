@@ -1,13 +1,8 @@
 package mtd
 
-import "net/http"
-
-func setReqHeaders(req *http.Request, headers http.Header) {
-	if headers == nil {
-		return
+func minInt64(x, y int64) int64 {
+	if x < y {
+		return x
 	}
-
-	for k, v := range headers {
-		req.Header.Set(k, v[0])
-	}
+	return y
 }
