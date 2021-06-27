@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package mtd;
+option go_package = "github.com/husseinelguindi/mtd/protos/mtd";
+
+service mtd {
+    rpc RequestHTTPDownload (HTTPDownloadRequest) returns (HTTPDownloadResponse);
+    rpc RequestDownloadInfo (DownloadInfoRequest) returns (DownloadInfoResponse);
+}
+
+message HTTPDownloadRequest {
+    string URL = 1;
+    uint32 Chunks = 2;
+    int64 BufSize = 3;
+
+    message Header {
+        string key = 1;
+        string val = 2;
+    }
+    repeated Header Headers = 4;
+
+    string FilePath = 5;
+}
+message HTTPDownloadResponse {
+    string ID = 1;
+}
+
+message DownloadInfoRequest {
+    string ID = 1;
+}
+message DownloadInfoResponse {
+    enum TaskStatus {
+        QUEUED = 0;
+        INPROGRESS = 1;
+        PAUSED = 2;
+        COMPLETED = 3;
+        ERRORED = 4;
+    }
+    TaskStatus Status = 1;
+
+    // Total content length in bytes
+    int64 ContentLength = 2;
+    // Elapsed time in seconds
+    int64 Elapsed = 3;
+}

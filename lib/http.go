@@ -47,6 +47,15 @@ func (t Task) httpHEAD() (metadata, error) {
 }
 
 func (t Task) Download() error {
+	t.status.set(IN_PROGRESS)
+	if err := t.download(); err != nil {
+		t.status.set(ERRORED)
+		return err
+	}
+	t.status.set(COMPLETED)
+	return nil
+}
+func (t Task) download() error {
 	// Get metadata from a HEAD request
 	meta, err := t.httpHEAD()
 	if err != nil {
@@ -73,7 +82,7 @@ func (t Task) Download() error {
 
 	// Distibute the byte ranges between t.Chunks number of goroutines
 	var start, end int64
-	for i := uint(1); i < t.Chunks; i++ {
+	for i := uint32(1); i < t.Chunks; i++ {
 		end += chunkSize
 		go t.httpWorker(byteRange{start, end - 1}, wg, errc)
 		start = end

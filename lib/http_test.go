@@ -21,8 +21,8 @@ func TestHTTPDownload(t *testing.T) {
 
 	task := Task{
 		URL:     "https://file-examples-com.github.io/uploads/2017/04/file_example_MP4_1920_18MG.mp4",
-		Chunks:  uint(runtime.NumCPU()),
-		BufSize: 7 * 1024 * 1024, // ~7mb
+		Chunks:  uint32(runtime.NumCPU()),
+		BufSize: 16 * 1024, // ~7mb
 
 		Dst:    f,
 		Writer: &writer,

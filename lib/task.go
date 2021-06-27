@@ -10,7 +10,7 @@ type Task struct {
 	URL string
 	// Threads uint
 	// ChunkSize int64
-	Chunks  uint
+	Chunks  uint32
 	BufSize int64
 
 	Client  http.Client
@@ -20,6 +20,27 @@ type Task struct {
 	Writer *Writer
 
 	Ctx context.Context
+
+	status *status
+}
+
+func NewTask(URL string, chunks uint32, bufSize int64, dst io.WriterAt, writer *Writer, ctx context.Context) Task {
+	return Task{
+		URL:     URL,
+		Chunks:  chunks,
+		BufSize: bufSize,
+
+		Dst:    dst,
+		Writer: writer,
+
+		Ctx: ctx,
+
+		status: &status{},
+	}
+}
+
+func (t Task) Status() Status {
+	return t.status.get()
 }
 
 func (t Task) write(rc io.ReadCloser, bRange byteRange) (written int, err error) {
