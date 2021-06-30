@@ -6,6 +6,11 @@ import (
 	"net/http"
 )
 
+// type Task interface {
+// 	Download() error
+// 	Status() Status
+// }
+
 type Task struct {
 	URL string
 	// Threads uint
