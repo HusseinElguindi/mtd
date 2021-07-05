@@ -53,7 +53,7 @@ func (t Task) write(rc io.ReadCloser, bRange byteRange) (written int, err error)
 	bufSize := minInt64(t.BufSize, bRange.end-bRange.start+1)
 	buf := make([]byte, bufSize)
 
-	// Prepare backet for reusing
+	// Prepare packet for reusing
 	packet := packet{
 		buf: buf,
 		dst: t.Dst,

@@ -5,7 +5,10 @@ import "sync/atomic"
 type Status uint32
 
 const (
-	StatusInProgress = Status(0)
+	StatusIdle       = Status(0)
+	StatusInProgress = iota
+	StatusCompleted  = iota
+	StatusErrored    = iota
 	end              = iota
 )
 
@@ -21,7 +24,10 @@ func (s Status) IsValid() bool {
 }
 
 var statusLabels = [end]string{
+	"IDLE",
 	"IN PROGRESS",
+	"COMPLETED",
+	"ERRORED",
 }
 
 func (s *Status) StoreAtomic(newStatus Status) {
